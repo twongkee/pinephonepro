@@ -1,0 +1,69 @@
+#!/bin/bash
+#
+media_cmd="media-ctl -d platform:rkisp1"
+v4l2_cmd="v4l2-ctl -z platform:rkisp1 -d rkisp1_mainpath"
+NAME=$(date +"%Y%m%dT%H%M%S")
+
+#reset
+$media_cmd "-r"
+# set links
+$media_cmd "-l" "'imx258 1-001a':0 -> 'rkisp1_csi':0 [1]"
+$media_cmd "-l" "'rkisp1_csi':1 -> 'rkisp1_isp':0 [1]"
+$media_cmd "-l" "'rkisp1_isp':2 -> 'rkisp1_resizer_mainpath':0 [1]"
+$media_cmd "-l" "'rkisp1_isp':2 -> 'rkisp1_resizer_selfpath':0 [0]"
+
+$media_cmd "--set-v4l2" '"imx258 1-001a":0 [fmt:SRGGB10_1X10/4208x3120@1/6]' 
+
+$media_cmd "--set-v4l2" '"rkisp1_csi":0 [fmt:SRGGB10_1X10/4208x3120@1/6]'
+
+$media_cmd "--set-v4l2" '"rkisp1_isp":0 [fmt:SRGGB10_1X10/4208x3120@1/6 crop:(0,0)/4208x3120]'
+$media_cmd "--set-v4l2" '"rkisp1_isp":2 [fmt:SRGGB8_1X8/4208x3120@1/6 crop:(0,0)/4208x3120]'
+
+$media_cmd "--set-v4l2" '"rkisp1_resizer_mainpath":0 [fmt:SRGGB8_1X8/4208x3120 crop:(0,0)/4208x3120]'
+$media_cmd "--set-v4l2" '"rkisp1_resizer_mainpath":1 [fmt:SRGGB8_1X8/4208x3120]'
+
+#$media_cmd "--set-v4l2" '"rkisp1_resizer_selfpath":0 [fmt:YUYV8_2X8/4208x3120 crop:(1048,780)/2096x1560]'
+#$media_cmd "--set-v4l2" '"rkisp1_resizer_selfpath":1 [fmt:YUYV8_2X8/1048x780]'
+
+$v4l2_cmd  "-v" "width=4208,height=3120,pixelformat=RGGB" # 
+
+### different v4l2 node for camera controls!
+
+v4l2-ctl -z platform:rkisp1 -d "imx258 1-001a" -c exposure=15000
+v4l2-ctl -z platform:rkisp1 -d "imx258 1-001a" -c analogue_gain=0
+v4l2-ctl -z platform:rkisp1 -d "imx258 1-001a" -c digital_gain=1024
+v4l2-ctl -z platform:rkisp1 -d "imx258 1-001a" -c wide_dynamic_range=0
+v4l2-ctl -z platform:rkisp1 -d "imx258 1-001a" -c test_pattern=0
+
+### yet another for focus
+v4l2-ctl -z platform:rkisp1 -d "dw9714 1-000c" -c focus_absolute=0
+
+# mainpath stream to file
+$v4l2_cmd  "--stream-mmap" "--stream-count" "1" "--stream-to=frame.raw"
+
+# selfpath
+#v4l2-ctl -z platform:rkisp1 -d "rkisp1_selfpath" "-v" "width=1048,height=780,pixelformat=422P"
+#v4l2-ctl -z platform:rkisp1 -d "rkisp1_selfpath" --stream-mmap --stream-count 3 --stream-to=frames.raw
+
+# convert to jpeg
+#
+#ffmpeg -y -hide_banner -loglevel error -s:v 4208x3120 -pix_fmt gbrp -i frame.raw ~/Pictures/CLI_${NAME}_gbrp_%03d.jpg
+#ffmpeg -y -hide_banner -loglevel error -s:v 4208x3120 -pix_fmt gray -i frame.raw ~/Pictures/CLI_${NAME}_gray_%03d.jpg
+#ffmpeg -y -hide_banner -loglevel error -s:v 4208x3120 -pix_fmt bayer_bggr8 -i frame.raw ~/Pictures/CLI_${NAME}_bayer_bggr8_%03d.jpg
+#ffmpeg -y -hide_banner -loglevel error -s:v 4208x3120 -pix_fmt bayer_gbrg8 -i frame.raw ~/Pictures/CLI_${NAME}_bayer_gbrg8_%03d.jpg
+#ffmpeg -y -hide_banner -loglevel error -s:v 4208x3120 -pix_fmt bayer_grbg8 -i frame.raw ~/Pictures/CLI_${NAME}_bayer_grbg8_%03d.jpg
+ffmpeg -y -hide_banner -loglevel error -s:v 4208x3120 -pix_fmt bayer_rggb8 -i frame.raw ~/Pictures/CLI_${NAME}_bayer_rggb8_%03d.jpg
+#ffmpeg -y -hide_banner -loglevel error -s:v 4208x3120 -pix_fmt bgr4_byte -i frame.raw ~/Pictures/CLI_${NAME}_bgr4_byte_%03d.jpg
+#ffmpeg -y -hide_banner -loglevel error -s:v 4208x3120 -pix_fmt bgr8 -i frame.raw ~/Pictures/CLI_${NAME}_bgr8_%03d.jpg
+#ffmpeg -y -hide_banner -loglevel error -s:v 4208x3120 -pix_fmt rgb8 -i frame.raw ~/Pictures/CLI_${NAME}_rgb8_%03d.jpg
+
+# convert ~/Pictures/CLI_yuv_${NAME}_001.jpg -channel green +level 0%,50%  ~/Pictures/CLI_yuv_greenshift_${NAME}_001.jpg
+convert ~/Pictures/CLI_${NAME}_bayer_rggb8_001.jpg \( +clone -channel RGB -equalize \) -average ~/Pictures/CLI_${NAME}_bayer_rggb8_001_equal.jpg
+
+# keep copy of raw file?
+cp frame.raw ~/Pictures/CLI_${NAME}.raw
+/home/mobian/py3/bin/python ~/bin/dotavg.py
+
+ffmpeg -y -hide_banner -loglevel error -s:v 4208x3120 -pix_fmt bayer_rggb8 -i numpy.raw ~/Pictures/CLI_${NAME}_numpy.jpg
+convert ~/Pictures/CLI_${NAME}_numpy.jpg \( +clone -channel RGB -equalize \) -average ~/Pictures/CLI_${NAME}_numpy_equal.jpg
+
