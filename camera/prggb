@@ -62,7 +62,7 @@ convert ~/Pictures/CLI_${NAME}_bayer_rggb8_001.jpg \( +clone -channel RGB -equal
 
 # keep copy of raw file?
 cp frame.raw ~/Pictures/CLI_${NAME}.raw
-/home/mobian/py3/bin/python ~/bin/dotavg.py
+/home/mobian/py311/bin/python dotavg.py
 
 ffmpeg -y -hide_banner -loglevel error -s:v 4208x3120 -pix_fmt bayer_rggb8 -i numpy.raw ~/Pictures/CLI_${NAME}_numpy.jpg
 convert ~/Pictures/CLI_${NAME}_numpy.jpg \( +clone -channel RGB -equalize \) -average ~/Pictures/CLI_${NAME}_numpy_equal.jpg
